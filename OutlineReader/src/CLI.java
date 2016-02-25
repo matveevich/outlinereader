@@ -1,4 +1,5 @@
 
+import java.io.*;
 import org.apache.commons.cli.*;
 
 /**
@@ -59,7 +60,7 @@ public class CLI {
         options.addOption(user);
 
         // add password option
-        Option password = OptionBuilder.isRequired().withArgName("password").withLongOpt("esspwd").hasArg().withDescription("password").create("p");
+        Option password = OptionBuilder.withArgName("password").withLongOpt("esspwd").hasArg().withDescription("password (If not specified, prompt password interactively)").create("p");
         options.addOption(password);
 
         // add server option
@@ -93,6 +94,9 @@ public class CLI {
         // add help option
         Option help = OptionBuilder.withArgName("help").withLongOpt("help").withDescription("display this help").create("h");
         options.addOption(help);
+        
+        Option outputFile = OptionBuilder.withArgName("outputFile").withLongOpt("file").hasArg().withDescription("Redirect result to file <outputFile>").create("f");
+        options.addOption(outputFile);
 
         // Parse commande line arguments
         CommandLine cmd;
@@ -121,8 +125,15 @@ public class CLI {
             if (cmd.hasOption("p")) {
                 readEssOtl.setEssPwd(cmd.getOptionValue("p"));
             } else {
-                System.out.println("Please specify a password!");
-                displayHelp(options);
+                Console console;
+                char[] passwd;
+                    if ((console = System.console()) != null &&
+                    (passwd = console.readPassword("[%s]", "Password:")) != null) {
+                        readEssOtl.setEssPwd(new String(passwd));
+                    } else {
+                        System.out.println("Please specify a password!");
+                        displayHelp(options);                        
+                    }
             }
 
             //Server
@@ -166,9 +177,18 @@ public class CLI {
             if (cmd.hasOption("e")) {
                 readEssOtl.setDelimiter(cmd.getOptionValue("e"));
             }
-
+            
+            if (cmd.hasOption("f")) {
+                try {
+                    System.setOut(new PrintStream(new BufferedOutputStream(new FileOutputStream(cmd.getOptionValue("f")))));
+                } catch (FileNotFoundException ex) {
+                    System.err.println(ex.getMessage());
+                }
+            }
             readEssOtl.ReadOutline();
-
+            if (cmd.hasOption("f")) {
+                System.out.close();
+            }
         } // if arguments missing for specified options(user, password, server...)
         catch (ParseException e) {
             displayHelp(options);
@@ -199,7 +219,7 @@ public class CLI {
 
         HelpFormatter formatter = new HelpFormatter();
 
-        formatter.printHelp("java -jar OutlineReader.jar -s server -u user -p password -a application -d database [OPTIONS]",
+        formatter.printHelp("java -jar OutlineReader.jar -s server -u user [-p password] -a application -d database [OPTIONS]",
                 HELP_DESC + "OPTIONS:\n", options, HELP_REQU + HELP_VERS
                 + HELP_AUTH + HELP_NOTE);
         System.exit(0);
