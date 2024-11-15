@@ -1,10 +1,8 @@
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.*;
 import java.io.*;
 import java.net.Socket;
 
-public class FTPESUploaderWithSessionReuse {
+public class FTPESUploader {
     public static void main(String[] args) {
         String server = "ftps.example.com";
         int port = 21;
@@ -34,9 +32,9 @@ public class FTPESUploaderWithSessionReuse {
             SSLSocket sslSocket = (SSLSocket) sslFactory.createSocket(socket, server, port, true);
             sslSocket.startHandshake();
 
-            // Сохраняем SSLSession для повторного использования
-            final SSLContext sslContext = SSLContext.getDefault();
-            final SSLSession controlSession = sslSocket.getSession();
+            // Сохраняем SSL-сессию управляющего соединения
+            SSLSession controlSession = sslSocket.getSession();
+            System.out.println("SSL-сессия установлена: " + controlSession.getId());
 
             reader = new BufferedReader(new InputStreamReader(sslSocket.getInputStream()));
             writer = new PrintWriter(sslSocket.getOutputStream(), true);
@@ -65,15 +63,19 @@ public class FTPESUploaderWithSessionReuse {
             String dataHost = parts[0] + "." + parts[1] + "." + parts[2] + "." + parts[3];
             int dataPort = (Integer.parseInt(parts[4]) << 8) + Integer.parseInt(parts[5]);
 
-            // Создаем защищённое соединение для передачи данных
+            // Создаём защищённое соединение для передачи данных
             SSLSocket dataSocket = (SSLSocket) sslFactory.createSocket(dataHost, dataPort);
-            dataSocket.setEnableSessionCreation(false); // Отключаем создание новой сессии
-            dataSocket.startHandshake();
+            dataSocket.setEnableSessionCreation(false); // Используем только существующие сессии
 
-            // Повторно используем SSL-сессию
-            dataSocket.setSSLParameters(sslContext.getDefaultSSLParameters());
-            dataSocket.getSession().invalidate();
-            dataSocket.startHandshake();
+            // Повторно используем сохранённую SSL-сессию
+            SSLSessionContext sessionContext = controlSession.getSessionContext();
+            SSLSession reusedSession = sessionContext.getSession(controlSession.getId());
+            if (reusedSession != null) {
+                System.out.println("Повторное использование SSL-сессии для data connection.");
+                dataSocket.startHandshake(); // Сессия будет автоматически использована
+            } else {
+                throw new IOException("Не удалось повторно использовать SSL-сессию");
+            }
 
             // Передача файла
             writer.println("STOR " + remoteFilePath);
@@ -96,7 +98,7 @@ public class FTPESUploaderWithSessionReuse {
             writer.println("QUIT");
             System.out.println("Ответ сервера: " + reader.readLine());
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             System.out.println("Ошибка: " + e.getMessage());
             e.printStackTrace();
         } finally {
