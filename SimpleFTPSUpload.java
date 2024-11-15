@@ -98,3 +98,31 @@ public class FTPESUploader {
         }
     }
 }
+
+
+// Ответ PASV (например, 227 Entering Passive Mode (192,168,1,1,4,5))
+String[] parts = response.split("[()]")[1].split(",");
+String dataHost = parts[0] + "." + parts[1] + "." + parts[2] + "." + parts[3];
+int dataPort = (Integer.parseInt(parts[4]) << 8) + Integer.parseInt(parts[5]);
+
+// Создаём защищённое соединение для передачи данных
+SSLSocketFactory sslFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+SSLSocket dataSocket = (SSLSocket) sslFactory.createSocket(dataHost, dataPort);
+
+// Передаём файл
+writer.println("STOR " + remoteFilePath);
+System.out.println("Ответ сервера: " + reader.readLine());
+
+try (OutputStream dataOut = dataSocket.getOutputStream();
+     FileInputStream fileInput = new FileInputStream(localFilePath)) {
+    byte[] buffer = new byte[4096];
+    int bytesRead;
+    while ((bytesRead = fileInput.read(buffer)) != -1) {
+        dataOut.write(buffer, 0, bytesRead);
+    }
+    dataOut.flush();
+    System.out.println("Файл успешно загружен.");
+}
+
+dataSocket.close();
+System.out.println("Ответ сервера: " + reader.readLine());
