@@ -1,63 +1,73 @@
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
-import java.io.FileInputStream;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.IOException;
+import java.io.*;
+import java.net.Socket;
 
-public class SimpleFTPSUpload {
+public class FTPESUploader {
     public static void main(String[] args) {
         String server = "ftps.example.com";
-        int port = 990;  // Обычно FTPS использует порт 990
+        int port = 21; // Порт для Explicit FTPS
         String user = "your_username";
         String password = "your_password";
         String localFilePath = "C:/path/to/your/local/file.txt";
         String remoteFilePath = "/path/on/server/file.txt";
 
-        SSLSocket socket = null;
-        PrintWriter writer = null;
+        Socket socket = null;
         BufferedReader reader = null;
+        PrintWriter writer = null;
 
         try {
-            // Создаем SSL-сокет для подключения к серверу FTPS
-            SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
-            socket = (SSLSocket) factory.createSocket(server, port);
-            writer = new PrintWriter(socket.getOutputStream(), true);
+            // Подключаемся к серверу по обычному FTP
+            socket = new Socket(server, port);
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            writer = new PrintWriter(socket.getOutputStream(), true);
 
-            // Логинимся на сервере
+            // Читаем приветствие
             System.out.println("Ответ сервера: " + reader.readLine());
+
+            // Отправляем команду AUTH TLS для перехода в защищённый режим
+            writer.println("AUTH TLS");
+            System.out.println("Ответ сервера: " + reader.readLine());
+
+            // Создаём защищённый SSL-сокет поверх существующего подключения
+            SSLSocketFactory sslFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+            SSLSocket sslSocket = (SSLSocket) sslFactory.createSocket(socket, server, port, true);
+            sslSocket.startHandshake();
+
+            // Обновляем потоки для работы через SSL
+            reader = new BufferedReader(new InputStreamReader(sslSocket.getInputStream()));
+            writer = new PrintWriter(sslSocket.getOutputStream(), true);
+
+            // Авторизация
             writer.println("USER " + user);
             System.out.println("Ответ сервера: " + reader.readLine());
             writer.println("PASS " + password);
             System.out.println("Ответ сервера: " + reader.readLine());
 
-            // Устанавливаем тип передачи в бинарный
+            // Устанавливаем режим передачи данных (бинарный)
             writer.println("TYPE I");
             System.out.println("Ответ сервера: " + reader.readLine());
 
-            // Переходим в режим пассивной передачи
+            // Переходим в пассивный режим
             writer.println("PASV");
             String response = reader.readLine();
             System.out.println("Ответ сервера: " + response);
 
-            // Парсим адрес и порт для передачи данных
+            // Парсим адрес и порт из ответа сервера
             String[] parts = response.split("[()]")[1].split(",");
             String dataHost = parts[0] + "." + parts[1] + "." + parts[2] + "." + parts[3];
             int dataPort = (Integer.parseInt(parts[4]) << 8) + Integer.parseInt(parts[5]);
 
-            // Открываем подключение для передачи данных
-            SSLSocket dataSocket = (SSLSocket) factory.createSocket(dataHost, dataPort);
-            OutputStream dataOut = dataSocket.getOutputStream();
+            // Подключаемся к порту для передачи данных
+            Socket dataSocket = new Socket(dataHost, dataPort);
 
-            // Подготавливаем файл к передаче
+            // Отправляем команду загрузки файла
             writer.println("STOR " + remoteFilePath);
             System.out.println("Ответ сервера: " + reader.readLine());
 
-            // Передаем файл
-            try (FileInputStream fileInput = new FileInputStream(localFilePath)) {
+            // Передаём файл
+            try (OutputStream dataOut = dataSocket.getOutputStream();
+                 FileInputStream fileInput = new FileInputStream(localFilePath)) {
                 byte[] buffer = new byte[4096];
                 int bytesRead;
                 while ((bytesRead = fileInput.read(buffer)) != -1) {
@@ -74,16 +84,16 @@ public class SimpleFTPSUpload {
             writer.println("QUIT");
             System.out.println("Ответ сервера: " + reader.readLine());
 
-        } catch (IOException ex) {
-            System.out.println("Ошибка: " + ex.getMessage());
-            ex.printStackTrace();
+        } catch (IOException e) {
+            System.out.println("Ошибка: " + e.getMessage());
+            e.printStackTrace();
         } finally {
             try {
-                if (writer != null) writer.close();
                 if (reader != null) reader.close();
+                if (writer != null) writer.close();
                 if (socket != null) socket.close();
-            } catch (IOException ex) {
-                ex.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
