@@ -25,7 +25,6 @@
         }
         .bar {
             height: 20px;
-            margin: 0 5px;
             background-color: lightblue;
             position: absolute;
             cursor: pointer;
@@ -44,6 +43,11 @@
             height: 100%;
             width: 1px;
             background-color: lightgray;
+            cursor: pointer;
+        }
+        .hour-marker.start-of-day {
+            background-color: black;
+            width: 2px;
         }
         .chart-background {
             position: absolute;
@@ -60,28 +64,34 @@
 
     <script>
         const jsonData = [
-            { "name": "Process A", "start": "2024-12-23T10:00:00", "end": "2024-12-23T14:00:00" },
+            { "name": "Process A", "start": "2024-12-23T10:15:00", "end": "2024-12-23T14:45:00" },
             { "name": "Process B", "start": "2024-12-23T11:00:00", "end": "2024-12-23T16:00:00" },
-            { "name": "Process A", "start": "2024-12-23T15:00:00", "end": "2024-12-23T18:00:00" },
+            { "name": "Process A", "start": "2024-12-23T15:30:00", "end": "2024-12-23T18:00:00" },
             { "name": "Process C", "start": "2024-12-24T09:00:00", "end": "2024-12-24T12:00:00" },
         ];
 
         const chartElement = document.getElementById("chart");
 
-        const startTime = new Date("2024-12-23T00:00:00").getTime();
-        const endTime = new Date("2024-12-24T23:59:59").getTime();
+        // Determine dynamic start and end time, rounded to nearest hour
+        const startTime = Math.floor(Math.min(...jsonData.map(item => new Date(item.start).getTime())) / (60 * 60 * 1000)) * (60 * 60 * 1000);
+        const endTime = Math.ceil(Math.max(...jsonData.map(item => new Date(item.end).getTime())) / (60 * 60 * 1000)) * (60 * 60 * 1000);
         const totalDuration = endTime - startTime;
 
         const timeToPercentage = (time) => ((time - startTime) / totalDuration) * 100;
 
-        // Create background hour markers
-        const totalHours = 48;
+        // Create background hour markers dynamically
+        const totalHours = Math.ceil((endTime - startTime) / (60 * 60 * 1000));
         const chartBackground = document.createElement("div");
         chartBackground.classList.add("chart-background");
         for (let i = 0; i <= totalHours; i++) {
+            const hourTime = startTime + i * 60 * 60 * 1000;
             const hourMarker = document.createElement("div");
             hourMarker.classList.add("hour-marker");
+            if (new Date(hourTime).getHours() === 0) {
+                hourMarker.classList.add("start-of-day");
+            }
             hourMarker.style.left = `${(i / totalHours) * 100}%`;
+            hourMarker.title = new Date(hourTime).toLocaleString();
             chartBackground.appendChild(hourMarker);
         }
         chartElement.appendChild(chartBackground);
