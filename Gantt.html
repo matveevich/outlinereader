@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gantt Chart</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .chart {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%; /* Ensures chart occupies full width */
+            position: relative;
+        }
+        .process {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .process-label {
+            width: 100px;
+        }
+        .bar {
+            height: 20px;
+            margin: 0 5px;
+            background-color: lightblue;
+            position: absolute;
+            cursor: pointer;
+        }
+        .bar:hover {
+            background-color: darkblue;
+            color: white;
+        }
+        .bar-container {
+            position: relative;
+            width: 100%; /* Occupies full width of the parent */
+            height: 60px; /* Adjust to accommodate multiple overlapping bars */
+        }
+        .hour-marker {
+            position: absolute;
+            height: 100%;
+            width: 1px;
+            background-color: lightgray;
+        }
+        .chart-background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Gantt Chart</h1>
+    <div id="chart" class="chart"></div>
+
+    <script>
+        const jsonData = [
+            { "name": "Process A", "start": "2024-12-23T10:00:00", "end": "2024-12-23T14:00:00" },
+            { "name": "Process B", "start": "2024-12-23T11:00:00", "end": "2024-12-23T16:00:00" },
+            { "name": "Process A", "start": "2024-12-23T15:00:00", "end": "2024-12-23T18:00:00" },
+            { "name": "Process C", "start": "2024-12-24T09:00:00", "end": "2024-12-24T12:00:00" },
+        ];
+
+        const chartElement = document.getElementById("chart");
+
+        const startTime = new Date("2024-12-23T00:00:00").getTime();
+        const endTime = new Date("2024-12-24T23:59:59").getTime();
+        const totalDuration = endTime - startTime;
+
+        const timeToPercentage = (time) => ((time - startTime) / totalDuration) * 100;
+
+        // Create background hour markers
+        const totalHours = 48;
+        const chartBackground = document.createElement("div");
+        chartBackground.classList.add("chart-background");
+        for (let i = 0; i <= totalHours; i++) {
+            const hourMarker = document.createElement("div");
+            hourMarker.classList.add("hour-marker");
+            hourMarker.style.left = `${(i / totalHours) * 100}%`;
+            chartBackground.appendChild(hourMarker);
+        }
+        chartElement.appendChild(chartBackground);
+
+        const groupedData = jsonData.reduce((groups, item) => {
+            if (!groups[item.name]) {
+                groups[item.name] = [];
+            }
+            groups[item.name].push(item);
+            return groups;
+        }, {});
+
+        for (const [name, items] of Object.entries(groupedData)) {
+            const processElement = document.createElement("div");
+            processElement.classList.add("process");
+
+            const labelElement = document.createElement("div");
+            labelElement.classList.add("process-label");
+            labelElement.textContent = name;
+            processElement.appendChild(labelElement);
+
+            const barContainer = document.createElement("div");
+            barContainer.classList.add("bar-container");
+
+            items.forEach(({ start, end }, index) => {
+                const startTimePercentage = timeToPercentage(new Date(start).getTime());
+                const endTimePercentage = timeToPercentage(new Date(end).getTime());
+
+                const barElement = document.createElement("div");
+                barElement.classList.add("bar");
+                barElement.style.left = `${startTimePercentage}%`;
+                barElement.style.width = `${endTimePercentage - startTimePercentage}%`;
+                barElement.style.top = `${index * 22}px`; // Slight vertical offset for overlapping bars
+
+                barElement.title = `${name}\nStart: ${new Date(start).toLocaleString()}\nEnd: ${new Date(end).toLocaleString()}`;
+
+                barContainer.appendChild(barElement);
+            });
+
+            processElement.appendChild(barContainer);
+            chartElement.appendChild(processElement);
+        }
+    </script>
+</body>
+</html>
